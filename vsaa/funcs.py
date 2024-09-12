@@ -317,8 +317,8 @@ else:
         mask_thr: int = 60, lmask: vs.VideoNode | EdgeDetectT = Prewitt,
         downscaler: ScalerT | None = None,
         supersampler: ScalerT | FSRCNNXShaderT | ShaderFile | Path | Literal[False] | MissingT = MISSING,
-        antialiaser: Antialiaser = Eedi3(0.125, 0.25, vthresh0=12, vthresh1=24, field=1, sclip_aa=None),
-        prefilter: Prefilter | vs.VideoNode | MissingT = MISSING, show_mask: bool = False, planes: PlanesT = 0,
+        antialiaser: Antialiaser | None = None, prefilter: Prefilter | vs.VideoNode | MissingT = MISSING,
+        show_mask: bool = False, planes: PlanesT = 0,
         **kwargs: Any
     ) -> vs.VideoNode:
         """
@@ -336,7 +336,9 @@ else:
                                 is performed. The supersampler should ideally be fairly sharp without
                                 introducing too much ringing.
                                 Default: ArtCNN.C16F64.
-        :param antialiaser:     Anti-aliasing function to be applied. Default: Eedi3.
+        :param antialiaser:     Anti-aliasing function to be applied. This function is deprecrated,
+                                and you should pass Eedi3 arguments as kwargs instead.
+                                Default: None.
         :param prefilter:       Pre-filtering to be applied before anti-aliasing. Default: None.
         :param show_mask:       If True, returns the edge detection mask instead of the processed clip.
                                 Default: False
@@ -388,7 +390,24 @@ else:
         else:
             work_clip = prefilter(func.work_clip)
 
-        antialiaser = antialiaser.copy(**kwargs)
+        if antialiaser is None:
+            eedi3_kwargs = dict(
+                alpha=0.125, beta=0.25, vthresh0=12, vthresh1=24, field=1
+            ) | kwargs | dict(sclip_aa=None)
+
+            antialiaser = Eedi3(**eedi3_kwargs)
+        else:
+            import warnings
+
+            warnings.warn(
+                'based_aa: "antialiaser" is deprecated and will be removed in future versions. '
+                'In the future, Eedi3 will be enforced. Please pass Eedi3 arguments as kwargs instead.',
+                DeprecationWarning
+            )
+
+            kwargs.pop('sclip_aa', None)
+
+            antialiaser = antialiaser.copy(**kwargs)
 
         if rfactor < 1.0:
             raise CustomOverflowError(
